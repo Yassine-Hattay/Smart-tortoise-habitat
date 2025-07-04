@@ -1,0 +1,14 @@
+# Ignore folders
+.settings/
+Core/Startup/
+Debug/
+Drivers/
+
+# Ignore specific files
+.cproject
+.mxproject
+.project
+fackroun_project Debug.launch
+fackroun_project.ioc
+STM32F446RETX_FLASH.ld
+STM32F446RETX_RAM.ld
