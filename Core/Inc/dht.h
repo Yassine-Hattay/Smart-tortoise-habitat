@@ -16,6 +16,7 @@ void Set_Pin_Input(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
 
 uint8_t DHT11_Check_Response(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
 uint8_t DHT11_Read(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin);
-uint8_t DHT11_Read_Data(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin, int16_t *temperature, int16_t *humidity);
+uint8_t DHT11_Read_Data(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin,
+		int16_t *temperature, int16_t *humidity);
 
 #endif /* __DHT_H */
