@@ -4,6 +4,10 @@ Core/Startup/
 Debug/
 Drivers/
 
+bootloader/.settings/
+bootloader/Core/Startup/
+bootloader/Debug/
+bootloader/Drivers/
 # Ignore specific files
 .cproject
 .mxproject
@@ -12,3 +16,13 @@ fackroun_project Debug.launch
 fackroun_project.ioc
 STM32F446RETX_FLASH.ld
 STM32F446RETX_RAM.ld
+.metadata
+
+bootloader/.cproject
+bootloader/.mxproject
+bootloader/.project
+bootloader/fackroun_project Debug.launch
+bootloader/fackroun_project.ioc
+bootloader/STM32F446RETX_FLASH.ld
+bootloader/STM32F446RETX_RAM.ld
+bootloader/.metadata
