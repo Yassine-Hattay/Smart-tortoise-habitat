@@ -53,6 +53,12 @@ pFunction JumpToApplication;
 uint32_t JumpAddress;
 
 #define APP_ADD     0x08008000
+#define APP_ADDRESS 0x08008000
+#define FLASH_PAGE_SIZE 0x4000  // 16 KB typical for STM32F4
+#define MAX_APP_SIZE 0x60000    // Example max size (384 KB)
+
+uint8_t rx_buffer[256];
+
 /* USER CODE END 0 */
 
 /**
@@ -60,44 +66,32 @@ uint32_t JumpAddress;
  * @retval int
  */
 
-int main(void) {
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
+  /* USER CODE END 1 */
 
-	/* USER CODE BEGIN 1 */
+  HAL_Init();
+  SystemClock_Config();
+  MX_GPIO_Init();
+  MX_USART2_UART_Init();
 
-	/* USER CODE END 1 */
+  /* USER CODE BEGIN 2 */
 
-	/* MCU Configuration--------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+  receive_and_flash();
 
-	/* USER CODE BEGIN Init */
 
-	/* USER CODE END Init */
+  goto_APP();
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* USER CODE END 2 */
 
-	/* USER CODE BEGIN SysInit */
-
-	/* USER CODE END SysInit */
-
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_USART2_UART_Init();
-	/* USER CODE BEGIN 2 */
-	goto_APP();
-
-	/* USER CODE END 2 */
-
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
-	while (1) {
-		/* USER CODE END WHILE */
-
-		/* USER CODE BEGIN 3 */
-	}
-	/* USER CODE END 3 */
+  while (1)
+  {
+    /* USER CODE BEGIN 3 */
+    // Optional: put error handling or standby here
+    /* USER CODE END 3 */
+  }
 }
 
 /**
@@ -208,6 +202,13 @@ static void MX_GPIO_Init(void) {
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
+	/* USART1 RX (PB7) */
+	GPIO_InitStruct.Pin = GPIO_PIN_7;
+	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+	GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
+	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 	/* USER CODE BEGIN MX_GPIO_Init_2 */
 
 	/* USER CODE END MX_GPIO_Init_2 */
@@ -242,6 +243,149 @@ void goto_APP(void) {
     // Jump
     JumpToApplication();
 }
+
+
+#define EXPECTED_SIZE 100000  // total bytes expected
+
+void receive_and_flash(void)
+{
+    HAL_StatusTypeDef status;
+
+    // ================================
+    // >>> Configure USART1 GPIO pins
+    // ================================
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_USART1_CLK_ENABLE();
+
+    // PB6 = USART1_TX
+    GPIO_InitStruct.Pin = GPIO_PIN_6;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    // PB7 = USART1_RX
+    GPIO_InitStruct.Pin = GPIO_PIN_7;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    // ===========================
+    // >>> Init USART1
+    // ===========================
+    UART_HandleTypeDef huart1;
+    huart1.Instance = USART1;
+    huart1.Init.BaudRate = 115200;
+    huart1.Init.WordLength = UART_WORDLENGTH_8B;
+    huart1.Init.StopBits = UART_STOPBITS_1;
+    huart1.Init.Parity = UART_PARITY_NONE;
+    huart1.Init.Mode = UART_MODE_TX_RX;
+    huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+    if (HAL_UART_Init(&huart1) != HAL_OK)
+    {
+        Error_Handler();
+    }
+
+    // Buffer to accumulate received data
+    uint8_t *rx_buffer = malloc(EXPECTED_SIZE);
+    if (!rx_buffer) {
+        // Allocation failed
+        Error_Handler();
+    }
+
+    uint32_t receivedSize = 0;
+    uint32_t startTick = HAL_GetTick();
+    const uint32_t timeoutMs = 10000; // 10 seconds overall timeout
+
+    while ((HAL_GetTick() - startTick) < timeoutMs && receivedSize < EXPECTED_SIZE)
+    {
+        // Receive in small chunks (e.g. 64 bytes) to avoid big blocking
+        uint32_t chunkSize = 64;
+        if ((EXPECTED_SIZE - receivedSize) < chunkSize) {
+            chunkSize = EXPECTED_SIZE - receivedSize;
+        }
+
+        status = HAL_UART_Receive(&huart1, rx_buffer + receivedSize, chunkSize, 500);
+
+        if (status == HAL_OK)
+        {
+            receivedSize += chunkSize;
+            startTick = HAL_GetTick();  // reset timeout on receive
+        }
+        else if (status == HAL_TIMEOUT)
+        {
+            // no data for 500ms chunk, continue to wait if total time not exceeded
+            continue;
+        }
+        else
+        {
+            // other errors, break early
+            break;
+        }
+    }
+
+    if (receivedSize > 1000 )
+    {
+        // We have full data - flash it!
+
+        HAL_FLASH_Unlock();
+
+        FLASH_EraseInitTypeDef EraseInitStruct;
+        uint32_t SectorError = 0;
+        EraseInitStruct.TypeErase = FLASH_TYPEERASE_SECTORS;
+        EraseInitStruct.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+        EraseInitStruct.Sector = FLASH_SECTOR_2;
+        EraseInitStruct.NbSectors = 6;
+        if (HAL_FLASHEx_Erase(&EraseInitStruct, &SectorError) != HAL_OK)
+        {
+            free(rx_buffer);
+            Error_Handler();
+        }
+
+        uint32_t appAddress = APP_ADD;
+
+        // Flash in 4-byte words
+        for (uint32_t i = 0; i < receivedSize; i += 4)
+        {
+            uint32_t word = *(uint32_t *)(rx_buffer + i);
+            if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, appAddress, word) != HAL_OK)
+            {
+                free(rx_buffer);
+                Error_Handler();
+            }
+            appAddress += 4;
+        }
+
+        HAL_FLASH_Lock();
+
+        // Print success message
+        const char *msg = "Flashing done\r\n";
+        HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    }
+    else
+    {
+        // Did not receive full data within timeout
+        const char *msg = "No data or incomplete\r\n";
+        HAL_UART_Transmit(&huart2, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    }
+
+    free(rx_buffer);
+
+    // ================================
+    // >>> Deinit USART1, free GPIO
+    // ================================
+    HAL_UART_DeInit(&huart1);
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_6 | GPIO_PIN_7);
+    __HAL_RCC_USART1_CLK_DISABLE();
+}
+
+
 /* USER CODE END 4 */
 
 /**

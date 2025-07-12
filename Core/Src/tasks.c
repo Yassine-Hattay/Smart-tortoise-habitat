@@ -115,7 +115,7 @@ void handle_humidity_task(void *argument) {
 	int16_t temperature_humidifier = 0, humidity_humidifier = 0;
 	uint8_t dht_status_cooler, dht_status_humidifier;
 	// 🔥 Update RTC once before loop
-	update_stm32_rtc_from_esp8266();
+	//update_stm32_rtc_from_esp8266();
 
 	for (;;) {
 		// Get RTC time
@@ -288,6 +288,9 @@ void handle_esp_task(void *argument) {
 
 			osThreadExit();
 
+		}else if (strncmp(rx_buffer, "Download Firmware", 12) == 0) {
+			printf("Download Firmware command received!\r\n");
+		    HAL_NVIC_SystemReset();
 		} else if (strlen(rx_buffer) > 0) {
 			printf("Unknown command 	: %s\r\n", rx_buffer);
 		}

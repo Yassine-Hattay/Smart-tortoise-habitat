@@ -1,11 +1,9 @@
 # Ignore folders
 .settings/
-Core/Startup/
 Debug/
 Drivers/
 
 bootloader/.settings/
-bootloader/Core/Startup/
 bootloader/Debug/
 bootloader/Drivers/
 # Ignore specific files
@@ -26,3 +24,4 @@ bootloader/fackroun_project.ioc
 bootloader/STM32F446RETX_FLASH.ld
 bootloader/STM32F446RETX_RAM.ld
 bootloader/.metadata
+bootloader/BootLoader Debug.launch
