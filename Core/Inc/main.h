@@ -53,6 +53,7 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+void MX_GPIO_Init_USART1_PB6_PB7(void);
 
 /* USER CODE END EFP */
 
